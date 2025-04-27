@@ -23,6 +23,6 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 # Server start options
 
-- ```-log``` Defult is ```false```, meaning server logs will go directly into terminal. Setting it ```true``` makes server output log into ```log.log` file.
+- ```-log``` Defult is ```false```, meaning server logs will go directly into terminal. Setting it ```true``` makes server output log into ```log.log``` file.
 - ```-ip``` Default is ```127.0.0.1```, meaning server will start on ```localhost```.
 - ```-port``` Default is ```8080```, meaning it will start on this port.
