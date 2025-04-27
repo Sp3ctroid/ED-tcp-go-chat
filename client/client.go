@@ -9,6 +9,11 @@ import (
 	"sync"
 )
 
+const (
+	move_to_prev_line = "\033[F"
+	clear_line        = "\033[K"
+)
+
 var waitGroup sync.WaitGroup
 
 func ReadFromServer(connection net.Conn) {
@@ -36,10 +41,15 @@ func WriteToServer(connection net.Conn) {
 			return
 		}
 
-		_, err = writer.WriteString(str)
+		num, err := writer.WriteString(str)
 		if err != nil {
 			waitGroup.Done()
 			return
+		}
+
+		if num != 0 {
+			fmt.Print(move_to_prev_line)
+			fmt.Print(clear_line)
 		}
 
 		err = writer.Flush()

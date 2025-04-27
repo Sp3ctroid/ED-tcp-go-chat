@@ -11,7 +11,7 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 ---
 
-# Available commands
+# Available commands in client
 
 -   ```/help``` for a list of commands in client
 -   ```/leave``` leave your current room. Redirects you to General, which is created by default
@@ -21,6 +21,8 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 ---
 
-# Logging
+# Server start options
 
-Server automatically logs every action it performs in ```log.log``` file, that is created once the server starts. If a file exists it will continue writing in it.
+- ```-log``` Defult is ```false```, meaning server logs will go directly into terminal. Setting it ```true``` makes server output log into ```log.log` file.
+- ```-ip``` Default is ```127.0.0.1```, meaning server will start on ```localhost```.
+- ```-port``` Default is ```8080```, meaning it will start on this port.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -18,7 +19,13 @@ var cmd = map[string]int{
 	"create": 5,
 }
 
-const ()
+const (
+	CMDJoin   = 1
+	CMDLeave  = 2
+	CMDList   = 3
+	CMDHelp   = 4
+	CMDCreate = 5
+)
 
 type Server struct {
 	Incoming   chan *Message
@@ -29,11 +36,16 @@ type Server struct {
 	warningLog *log.Logger
 }
 
-func NewServer() *Server {
-	file, err := os.OpenFile("log.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func NewServer(fileLog bool) *Server {
 
-	if err != nil {
-		panic(err)
+	file := os.Stdout
+	err := error(nil)
+	if fileLog {
+		file, err = os.OpenFile("log.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	log.SetOutput(file)
@@ -80,25 +92,25 @@ func (s *Server) ParseMsg(msg *Message) {
 
 func (s *Server) FormatText(msg Message) string {
 
-	return fmt.Sprintf("%v %v: %v", msg.Time, msg.Author, msg.Text)
+	return fmt.Sprintf("%v %v: %v", msg.Time, msg.Author.Username, msg.Text)
 
 }
 
 func (s *Server) ParseCommand(msg *Message) {
 	switch {
-	case GetCommand(msg.Text) == 1:
+	case GetCommand(msg.Text) == CMDJoin:
 		s.infoLog.Println("Received JOIN command")
 		s.JoinRoom(msg.Author, s.GetSecArg(msg))
-	case GetCommand(msg.Text) == 2:
+	case GetCommand(msg.Text) == CMDLeave:
 		s.infoLog.Println("Received LEAVE command")
 		s.LeaveRoom(msg.Author)
-	case GetCommand(msg.Text) == 3:
+	case GetCommand(msg.Text) == CMDList:
 		s.infoLog.Println("Received LIST command")
 		s.ListRooms(msg.Author)
-	case GetCommand(msg.Text) == 4:
+	case GetCommand(msg.Text) == CMDHelp:
 		s.infoLog.Println("Received HELP command")
 		s.Help(msg.Author)
-	case GetCommand(msg.Text) == 5:
+	case GetCommand(msg.Text) == CMDCreate:
 		s.infoLog.Println("Received CREATE command")
 		s.CreateRoom(msg.Author, s.GetSecArg(msg))
 	}
@@ -107,7 +119,6 @@ func (s *Server) ParseCommand(msg *Message) {
 func GetCommand(text string) int {
 	command := strings.Split(text, " ")[0]
 	command = strings.Trim(command, "\n")
-	fmt.Println(command)
 	return cmd[command]
 }
 
@@ -116,10 +127,14 @@ func (s *Server) GetSecArg(msg *Message) string {
 }
 
 func (s *Server) LeaveRoom(client *Client) {
+	s.UtilMsgToClient(client, "You left room: %s! You are now in room: General\n", client.Room.Name)
+	s.UtilBroadcast(client, "%s left room!\n", client.Username)
+	s.infoLog.Printf("CLIENT: (%s) left ROOM: (%s)", client.Username, client.Room.Name)
+
 	delete(s.Rooms[client.Room.Name].Users, client.Username)
 	client.Room = s.Rooms["General"]
 	s.Rooms["General"].Users[client.Username] = client
-	s.infoLog.Printf("CLIENT: (%s) left ROOM: (%s)", client.Username, client.Room.Name)
+
 }
 
 func (s *Server) Help(client *Client) {
@@ -147,6 +162,8 @@ func (s *Server) JoinRoom(client *Client, name string) {
 	s.Rooms[name].Users[client.Username] = client
 
 	s.infoLog.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room.Name)
+	s.UtilMsgToClient(client, "You joined room: %s!\n", name)
+	s.UtilBroadcast(client, "%s joined this room\n", client.Username)
 }
 
 func (s *Server) CreateRoom(client *Client, name string) {
@@ -157,15 +174,16 @@ func (s *Server) CreateRoom(client *Client, name string) {
 	}
 	room := NewRoom(name)
 	s.Rooms[name] = room
-	fmt.Printf("created room: %s", name)
 	delete(s.Rooms[client.Room.Name].Users, client.Username)
 	client.Room = room
 	room.Users[client.Username] = client
 	s.infoLog.Printf("CLIENT: (%s) created and joined ROOM: (%s)", client.Username, client.Room.Name)
+	s.UtilMsgToClient(client, "You created and joined room: %s!\n", name)
 }
 
 func (s *Server) ListRooms(client *Client) {
 	s.infoLog.Printf("CLIENT: (%s) requested list of rooms", client.Username)
+	s.UtilMsgToClient(client, "Available rooms:\n")
 	for _, room := range s.Rooms {
 		client.Write(room.Name + "\n")
 	}
@@ -175,6 +193,15 @@ func (s *Server) Broadcast(msg *Message) {
 	for _, user := range msg.Dest.Users {
 		user.Write(s.FormatText(*msg))
 	}
+}
+
+func (s *Server) UtilBroadcast(client *Client, format string, args ...interface{}) {
+	for _, user := range client.Room.Users {
+		user.Write(fmt.Sprintf(format, args...))
+	}
+}
+func (s *Server) UtilMsgToClient(client *Client, format string, args ...interface{}) {
+	client.Write(fmt.Sprintf(format, args...))
 }
 
 type Message struct {
@@ -235,7 +262,6 @@ func (client *Client) Read() {
 
 		msg := NewMessage()
 		msg.FillMessage(client, str)
-		fmt.Println(client)
 
 		client.Server.Incoming <- msg
 	}
@@ -252,10 +278,15 @@ func (client *Client) Write(str string) {
 
 }
 
-func (server *Server) Join(client *Client) {
-	if server.Rooms["General"].Users[client.Username] != nil || server.Users[client.Username] != nil {
+func (s *Server) RecursiveUserNameCheck(client *Client) {
+	if s.Users[client.Username] != nil {
 		client.Username = client.Username + "*"
+		s.RecursiveUserNameCheck(client)
 	}
+}
+
+func (server *Server) Join(client *Client) {
+	server.RecursiveUserNameCheck(client)
 	server.Users[client.Username] = client
 
 	server.Rooms["General"].Users[client.Username] = client
@@ -277,7 +308,13 @@ func NewRoom(name string) *Room {
 
 func main() {
 
-	listener, err := net.Listen("tcp", ":8080")
+	fileLog := flag.Bool("log", false, "=true for logging into file, =false for logging into console")
+	ip := flag.String("ip", "127.0.0.1", "ip address")
+	port := flag.String("port", "8080", "port number")
+
+	flag.Parse()
+
+	listener, err := net.Listen("tcp", *ip+":"+*port)
 
 	if err != nil {
 
@@ -285,13 +322,14 @@ func main() {
 
 	defer listener.Close()
 
-	server := NewServer()
+	server := NewServer(*fileLog)
 	server.infoLog.Println("Server started on port 8080")
 	room := Room{Name: "General", Users: make(map[string]*Client)}
 	server.Rooms[room.Name] = &room
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			server.errorLog.Println("Couldn't accept connection")
 			continue
 		}
 
