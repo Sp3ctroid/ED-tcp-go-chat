@@ -13,11 +13,11 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 # Available commands
 
-```-help``` for a list of commands in client
-```-leave``` leave your current room. Redirects you to General, which is created by default
-```-create <name>``` create a room with a given name
-```-join <name>``` join a room with a given name
-```-list``` get a list of all rooms
+-   ```/help``` for a list of commands in client
+-   ```/leave``` leave your current room. Redirects you to General, which is created by default
+-   ```/create <name>``` create a room with a given name
+-   ```/join <name>``` join a room with a given name
+-   ```/list``` get a list of all rooms
 
 ---
 
