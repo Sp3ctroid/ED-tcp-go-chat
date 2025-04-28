@@ -5,7 +5,7 @@ Smol tcp server/client chat Im making for educational purposes.
 
 # Starting client and a server
 
-Simply run ```go run server.go``` in one terminal and ```go run client.go``` in another terminal.
+Simply run ```go run server.go``` in one terminal and ```go run client.go``` or ```go run client_no_bubble.go``` in another terminal.
 
 Congratulations! You are connected and can start sending messages. Start a third terminal and client, so you can now chat with yourself and meet the demands of your schizophrenia!
 
@@ -13,11 +13,14 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 # Available commands in client
 
--   ```/help``` for a list of commands in client
--   ```/leave``` leave your current room. Redirects you to General, which is created by default
+>[!WARNING]
+>NO BUBBLE CLIENT DOESNT WORK PROPEPRLY AS OF 29.04.2025, SINCE READING AND WRITING HAS BEEN REWORKED TO JSON FORMAT.
+
+-   ```/help``` for a list of commands in client **NEEDS REWORK**
+-   ```/leave``` leave your current room. Redirects you to General, which is created by default **NO INTERFACE IN TUI VERSION**
 -   ```/create <name>``` create a room with a given name
--   ```/join <name>``` join a room with a given name
--   ```/list``` get a list of all rooms
+-   ```/join <name>``` join a room with a given name **NO INTERFACE IN TUI VERSION**
+-   ```/list``` get a list of all rooms **NO INTERFACE IN TUI VERSION**
 
 ---
 

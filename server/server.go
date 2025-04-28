@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -10,6 +11,13 @@ import (
 	"strings"
 	"time"
 )
+
+type JSON_payload struct {
+	Username string `json:"author"`
+	Text     string `json:"text"`
+	Time     string `json:"time"`
+	Room     string `json:"room"`
+}
 
 var cmd = map[string]int{
 	"join":   1,
@@ -109,7 +117,7 @@ func (s *Server) ParseCommand(msg *Message) {
 		s.ListRooms(msg.Author)
 	case GetCommand(msg.Text) == CMDHelp:
 		s.infoLog.Println("Received HELP command")
-		s.Help(msg.Author)
+		//s.Help(msg.Author)
 	case GetCommand(msg.Text) == CMDCreate:
 		s.infoLog.Println("Received CREATE command")
 		s.CreateRoom(msg.Author, s.GetSecArg(msg))
@@ -127,8 +135,8 @@ func (s *Server) GetSecArg(msg *Message) string {
 }
 
 func (s *Server) LeaveRoom(client *Client) {
-	s.UtilMsgToClient(client, "You left room: %s! You are now in room: General\n", client.Room.Name)
-	s.UtilBroadcast(client, "%s left room!\n", client.Username)
+	s.UtilMsgToClient(client, fmt.Sprintf("You left room: %s! You are now in room: General\n", client.Room.Name), time.Now().Format(time.TimeOnly))
+	s.UtilBroadcast(client, " left room!\n", time.Now().Format(time.TimeOnly))
 	s.infoLog.Printf("CLIENT: (%s) left ROOM: (%s)", client.Username, client.Room.Name)
 
 	delete(s.Rooms[client.Room.Name].Users, client.Username)
@@ -137,22 +145,22 @@ func (s *Server) LeaveRoom(client *Client) {
 
 }
 
-func (s *Server) Help(client *Client) {
-	client.Write("Available commands:\n")
-	client.Write("\n")
-	client.Write("join <name>\n")
-	client.Write("\n")
-	client.Write("leave\n")
-	client.Write("\n")
-	client.Write("list\n")
-	client.Write("\n")
-	client.Write("create <name>\n")
-	client.Write("\n")
-}
+// func (s *Server) Help(client *Client) {
+// 	client.Write("Available commands:\n")
+// 	client.Write("\n")
+// 	client.Write("join <name>\n")
+// 	client.Write("\n")
+// 	client.Write("leave\n")
+// 	client.Write("\n")
+// 	client.Write("list\n")
+// 	client.Write("\n")
+// 	client.Write("create <name>\n")
+// 	client.Write("\n")
+// }
 
 func (s *Server) JoinRoom(client *Client, name string) {
 	if s.Rooms[name] == nil {
-		client.Write("ROOM DOES NOT EXIST\n")
+		client.Write("Server Notification", "Room Doesn't Exist\n", time.Now().Format(time.TimeOnly))
 		s.warningLog.Printf("CLIENT: (%s) tried to join ROOM: (%s) that does not exist", client.Username, name)
 		return
 	}
@@ -162,13 +170,13 @@ func (s *Server) JoinRoom(client *Client, name string) {
 	s.Rooms[name].Users[client.Username] = client
 
 	s.infoLog.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room.Name)
-	s.UtilMsgToClient(client, "You joined room: %s!\n", name)
-	s.UtilBroadcast(client, "%s joined this room\n", client.Username)
+	s.UtilMsgToClient(client, fmt.Sprintf("You joined room: %s!\n", name), time.Now().Format(time.TimeOnly))
+	s.UtilBroadcast(client, "joined this room!", time.Now().Format(time.TimeOnly))
 }
 
 func (s *Server) CreateRoom(client *Client, name string) {
 	if s.Rooms[name] != nil {
-		client.Write("ROOM ALREADY EXISTS\n")
+		client.Write("Server Notification", "Room Already Exists\n", time.Now().Format(time.TimeOnly))
 		s.warningLog.Printf("CLIENT: (%s) tried to create ROOM: (%s) that already exists", client.Username, client.Room.Name)
 		return
 	}
@@ -178,30 +186,30 @@ func (s *Server) CreateRoom(client *Client, name string) {
 	client.Room = room
 	room.Users[client.Username] = client
 	s.infoLog.Printf("CLIENT: (%s) created and joined ROOM: (%s)", client.Username, client.Room.Name)
-	s.UtilMsgToClient(client, "You created and joined room: %s!\n", name)
+	s.UtilMsgToClient(client, "CREATED\n", time.Now().Format(time.TimeOnly))
 }
 
 func (s *Server) ListRooms(client *Client) {
 	s.infoLog.Printf("CLIENT: (%s) requested list of rooms", client.Username)
-	s.UtilMsgToClient(client, "Available rooms:\n")
+	//s.UtilMsgToClient(client, "Available rooms:\n", )
 	for _, room := range s.Rooms {
-		client.Write(room.Name + "\n")
+		client.Write("Server Notification", room.Name+"\n", time.Now().Format(time.TimeOnly))
 	}
 }
 
 func (s *Server) Broadcast(msg *Message) {
 	for _, user := range msg.Dest.Users {
-		user.Write(s.FormatText(*msg))
+		user.Write(msg.Author.Username, msg.Text, msg.Time)
 	}
 }
 
-func (s *Server) UtilBroadcast(client *Client, format string, args ...interface{}) {
+func (s *Server) UtilBroadcast(client *Client, Text string, Time string) {
 	for _, user := range client.Room.Users {
-		user.Write(fmt.Sprintf(format, args...))
+		user.Write(client.Username, Text, Time)
 	}
 }
-func (s *Server) UtilMsgToClient(client *Client, format string, args ...interface{}) {
-	client.Write(fmt.Sprintf(format, args...))
+func (s *Server) UtilMsgToClient(client *Client, Text string, Time string) {
+	client.Write(client.Username, Text, Time)
 }
 
 type Message struct {
@@ -268,12 +276,17 @@ func (client *Client) Read() {
 
 }
 
-func (client *Client) Write(str string) {
-	_, err := client.Writer.WriteString(str)
+func (client *Client) Write(Username string, Text string, Time string) {
+
+	JSON_payload := JSON_payload{Username: Username, Text: Text, Time: Time, Room: client.Room.Name}
+	str_json, err := json.Marshal(JSON_payload)
+
+	_, err = client.Writer.WriteString(string(str_json))
 	if err != nil {
 		return
 	}
-	client.Server.infoLog.Printf("Sent MESSAGE: (%s) to CLIENT: (%s); in ROOM: (%s)", strings.Trim(str, "\n"), client.Username, client.Room.Name)
+	client.Server.infoLog.Printf("GOT PAYLOAD: %s, %s, %s", JSON_payload.Username, JSON_payload.Text, JSON_payload.Time)
+	client.Server.infoLog.Printf("Sent MESSAGE: (%s) to CLIENT: (%s); in ROOM: (%s)", strings.Trim(Text, "\n"), client.Username, client.Room.Name)
 	client.Writer.Flush()
 
 }
