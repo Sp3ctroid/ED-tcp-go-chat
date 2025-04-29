@@ -68,6 +68,7 @@ func (m createRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ta.Reset()
 			return m, nil
 		case tea.KeyEsc:
+			m.ta.Placeholder = "New Room Name..."
 			return m, msgState(types.CancelJoin)
 		}
 	}

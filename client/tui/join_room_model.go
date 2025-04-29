@@ -51,6 +51,7 @@ func (jr JoinRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			jr.ta.Reset()
 			return jr, nil
 		case tea.KeyEsc:
+			jr.ta.Placeholder = "Choose Room..."
 			return jr, msgState(types.CancelCreate)
 		}
 	}
