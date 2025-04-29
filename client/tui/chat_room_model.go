@@ -85,6 +85,9 @@ func (m chatRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.viewport.GotoBottom()
 	case types.JSON_payload:
+		if strings.Compare(msg.Status, "BRCREATED") == 0 {
+			return m, nil
+		}
 		m.messages = append(m.messages, msg.Time+" "+m.senderStyle.Render(msg.Username)+" "+msg.Text)
 		m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(strings.Join(m.messages, "\n")))
 		m.viewport.GotoBottom()
@@ -120,5 +123,5 @@ func (m chatRoomModel) View() string {
 }
 
 func (m chatRoomModel) Init() tea.Cmd {
-	return nil
+	return tea.WindowSize()
 }

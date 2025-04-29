@@ -49,9 +49,10 @@ func (m createRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 
 	case types.JSON_payload:
-		if strings.Compare("CREATED\n", msg.Text) == 0 {
-			return m, msgState(types.ChatRoom)
-		} else if strings.Compare("Room Already Exists\n", msg.Text) == 0 {
+		if strings.Compare("CREATED\n", msg.Status) == 0 {
+			m.ta.Placeholder = "New Room Name..."
+			return m, tea.Sequence(msgState(types.ChatRoom), JSON_payload_CMD(msg))
+		} else if strings.Compare("ALREX", msg.Status) == 0 {
 			m.ta.Placeholder = "Room Already Exists"
 			return m, nil
 		}
@@ -64,7 +65,7 @@ func (m createRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ta.Reset()
 			return m, nil
 		case tea.KeyEsc:
-			return m, msgState(types.CancelCreate)
+			return m, msgState(types.CancelJoin)
 		}
 	}
 	return m, tiCmd
@@ -75,5 +76,11 @@ func (m createRoomModel) View() string {
 }
 
 func (m createRoomModel) Init() tea.Cmd {
-	return nil
+	return tea.WindowSize()
+}
+
+func JSON_payload_CMD(json_payload types.JSON_payload) tea.Cmd {
+	return func() tea.Msg {
+		return json_payload
+	}
 }

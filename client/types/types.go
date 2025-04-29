@@ -6,22 +6,20 @@ type JSON_payload struct {
 	Username string `json:"author"`
 	Text     string `json:"text"`
 	Time     string `json:"time"`
-	Room     string `json:"room"`
+	Status   string `json:"status"`
 }
 
 const (
 	state SessionState = iota
 	JoinRoom
 	CreateRoom
+	LeaveRoom
+	ListRooms
 	ChatRoom
 	CancelCreate
+	CancelJoin
+	CancelList
 )
-
-type RecMsg struct {
-	Username string `json:"author"`
-	Time     string `json:"time"`
-	Text     string `json:"text"`
-}
 
 type StateChangeMsg struct {
 	Msg SessionState
