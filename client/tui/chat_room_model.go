@@ -36,8 +36,7 @@ func NewChatRoomModel(conn *net.Conn) chatRoomModel {
 		BorderTop(true).
 		BorderLeft(true).
 		BorderRight(true).
-		BorderBottom(true).
-		Align(lipgloss.Center)
+		BorderBottom(true)
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 
 	ta.ShowLineNumbers = false
@@ -49,7 +48,7 @@ func NewChatRoomModel(conn *net.Conn) chatRoomModel {
 		BorderTop(true).
 		BorderLeft(true).
 		BorderRight(true).
-		BorderBottom(true).PaddingLeft(3).PaddingTop(1).Align(lipgloss.Center)
+		BorderBottom(true).PaddingLeft(3).PaddingTop(1)
 
 	vp.SetContent(`Welcome to General!
 Type a message and press Enter to send.`)
@@ -72,8 +71,6 @@ func (m chatRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vpCmd tea.Cmd
 	)
 
-	m.textarea, tiCmd = m.textarea.Update(msg)
-	m.viewport, vpCmd = m.viewport.Update(msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.viewport.Width = msg.Width
@@ -106,6 +103,9 @@ func (m chatRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 	m.viewport.GotoBottom()
+
+	m.textarea, tiCmd = m.textarea.Update(msg)
+	m.viewport, vpCmd = m.viewport.Update(msg)
 	return m, tea.Batch(tiCmd, vpCmd)
 }
 

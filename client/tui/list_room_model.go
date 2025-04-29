@@ -17,7 +17,9 @@ type RoomListModel struct {
 	Items  []string
 	Cursor int
 
-	conn net.Conn
+	height int
+	width  int
+	conn   net.Conn
 }
 
 func (m *RoomListModel) GetAllRooms() {
@@ -50,6 +52,9 @@ func (m RoomListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
+	case tea.WindowSizeMsg:
+		m.height = msg.Height
+		m.width = msg.Width
 	case types.JSON_payload:
 		m.Items = append(m.Items, msg.Text)
 		return m, nil
@@ -103,5 +108,5 @@ func (m RoomListModel) View() string {
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
 
-	return border_style.Render(s)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, border_style.Render(s))
 }

@@ -13,9 +13,10 @@ import (
 )
 
 type createRoomModel struct {
-	ta textarea.Model
-
-	conn net.Conn
+	ta     textarea.Model
+	height int
+	width  int
+	conn   net.Conn
 }
 
 func NewCreateRoomModel(conn *net.Conn) createRoomModel {
@@ -48,7 +49,8 @@ func (m createRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-
+		m.height = msg.Height
+		m.width = msg.Width
 	case types.JSON_payload:
 		if strings.Compare("CREATED\n", msg.Status) == 0 {
 			m.ta.Placeholder = "New Room Name..."
@@ -73,7 +75,8 @@ func (m createRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m createRoomModel) View() string {
-	return m.ta.View()
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.ta.View())
 }
 
 func (m createRoomModel) Init() tea.Cmd {

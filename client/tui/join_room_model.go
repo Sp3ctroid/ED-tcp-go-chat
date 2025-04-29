@@ -12,9 +12,10 @@ import (
 )
 
 type JoinRoomModel struct {
-	ta textarea.Model
-
-	conn net.Conn
+	ta     textarea.Model
+	width  int
+	height int
+	conn   net.Conn
 }
 
 func (jr JoinRoomModel) Init() tea.Cmd {
@@ -22,7 +23,7 @@ func (jr JoinRoomModel) Init() tea.Cmd {
 }
 
 func (jr JoinRoomModel) View() string {
-	return jr.ta.View()
+	return lipgloss.Place(jr.width, jr.height, lipgloss.Center, lipgloss.Center, jr.ta.View())
 }
 
 func (jr JoinRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -31,7 +32,8 @@ func (jr JoinRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-
+		jr.width = msg.Width
+		jr.height = msg.Height
 	case types.JSON_payload:
 		if strings.Compare("JOINED", msg.Status) == 0 {
 			jr.ta.Placeholder = "Choose Room..."

@@ -16,9 +16,11 @@ func msgState(id types.SessionState) tea.Cmd {
 }
 
 type mainModel struct {
-	conn  net.Conn
-	err   error
-	state types.SessionState
+	conn   net.Conn
+	err    error
+	state  types.SessionState
+	height int
+	width  int
 
 	listRoomsModel  tea.Model
 	chatRoomModel   tea.Model
@@ -55,7 +57,14 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-
+	case tea.WindowSizeMsg:
+		m.height = msg.Height
+		m.width = msg.Width
+		m.chatRoomModel, _ = m.chatRoomModel.Update(msg)
+		m.createRoomModel, _ = m.createRoomModel.Update(msg)
+		m.joinRoomModel, _ = m.joinRoomModel.Update(msg)
+		m.listRoomsModel, _ = m.listRoomsModel.Update(msg)
+		m.chatRoomModel, _ = m.chatRoomModel.Update(msg)
 	case types.JSON_payload:
 		if strings.Compare("BRCREATED", msg.Status) == 0 {
 			m.listRoomsModel, cmd = m.listRoomsModel.Update(msg)
@@ -84,7 +93,8 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case types.ChatRoom:
 			m.state = msg.Msg
 			m.chatRoomModel = NewChatRoomModel(&m.conn)
-			//m.chatRoomModel, cmd = m.chatRoomModel.Update(msg)
+			newChatRoom, cmd := m.chatRoomModel.Update(tea.WindowSizeMsg{Height: m.height, Width: m.width})
+			m.chatRoomModel = newChatRoom
 			cmds = append(cmds, cmd)
 		case types.CancelCreate:
 			m.state = types.ChatRoom
