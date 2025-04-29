@@ -60,7 +60,8 @@ func NewJoinRoomModel(conn *net.Conn) JoinRoomModel {
 	ta.Placeholder = "Choose Room..."
 	ta.Focus()
 
-	ta.Prompt = "┃ "
+	prompt_style := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Blink(true)
+	ta.Prompt = prompt_style.Render("┃ ")
 	ta.CharLimit = 280
 
 	ta.SetWidth(50)

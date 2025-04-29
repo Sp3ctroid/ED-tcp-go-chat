@@ -10,7 +10,15 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+type RoomListModel struct {
+	Items  []string
+	Cursor int
+
+	conn net.Conn
+}
 
 func (m *RoomListModel) GetAllRooms() {
 
@@ -32,13 +40,6 @@ func NewRoomList(conn *net.Conn) RoomListModel {
 	list.conn = *conn
 	list.GetAllRooms()
 	return list
-}
-
-type RoomListModel struct {
-	Items  []string
-	Cursor int
-
-	conn net.Conn
 }
 
 func (m RoomListModel) Init() tea.Cmd {
@@ -88,16 +89,19 @@ func (m RoomListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m RoomListModel) View() string {
 
 	s := "Available Rooms\n\n"
-
+	choice_style := lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#04B575"))
+	cursor_style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#04B575")).Blink(true)
+	border_style := lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder())
 	for i, choice := range m.Items {
 
 		cursor := " "
 		if m.Cursor == i {
-			cursor = ">"
+			cursor = cursor_style.Render("┃ ")
+			choice = choice_style.Render(choice)
 		}
 
-		s += fmt.Sprintf("%s %s\n\n", cursor, choice)
+		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
 
-	return s
+	return border_style.Render(s)
 }

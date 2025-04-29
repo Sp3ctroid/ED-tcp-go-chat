@@ -104,10 +104,6 @@ func (m chatRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-	// We handle errors just like any other message
-	case errMsg:
-		m.err = msg
-		return m, nil
 	}
 	m.viewport.GotoBottom()
 	return m, tea.Batch(tiCmd, vpCmd)

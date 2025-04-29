@@ -8,10 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type (
-	errMsg error
-)
-
 func msgState(id types.SessionState) tea.Cmd {
 	return func() tea.Msg {
 		msg := types.StateChangeMsg{Msg: id}
