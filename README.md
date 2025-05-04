@@ -32,8 +32,22 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 You can go back to your chat room by pressing ```esc``` if you change your mind about creating or joining a room.
 
+---
+
 # Server start options
 
 - ```-log``` Defult is ```false```, meaning server logs will go directly into terminal. Setting it ```true``` makes server output log into ```log.log``` file.
 - ```-ip``` Default is ```127.0.0.1```, meaning server will start on ```localhost```.
 - ```-port``` Default is ```8080```, meaning it will start on this port.
+
+---
+
+# Server storage
+
+To store its users and rooms, server uses corresponding interfaces ```UserStore``` and ```RoomStore```. This ensures, that developer can easily swap between storages by implementing these interfaces. Introduced this so that I can start breaking server down into files, so that code is more readable and modifiable.
+
+Curently there's only map storage, which can also be considered a mock storage for testing.
+
+To make a DB storage, you simply need to implement interfaces mentioned above.
+
+---

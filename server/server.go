@@ -23,13 +23,13 @@ func main() {
 	defer listener.Close()
 
 	server := types.NewServer(*fileLog)
-	server.InfoLog.Println("Server started on port 8080")
-	room := types.Room{Name: "General", Users: make(map[string]*types.Client)}
-	server.Rooms[room.Name] = &room
+	types.INFOLOG.Println("Server started on port 8080")
+	room := types.Room{Name: "General", Users: types.NewClientMap()}
+	server.Rooms.CREATE_New_Room(&room)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			server.ErrorLog.Println("Couldn't accept connection")
+			types.ERRORLOG.Println("Couldn't accept connection")
 			continue
 		}
 

@@ -20,34 +20,52 @@ type JSON_payload struct {
 
 type Room struct {
 	Name  string
-	Users map[string]*Client
+	Users UserStore
+}
+
+type UserStore interface {
+	GET_All_Users_Server() map[string]*Client
+	CHECK_If_Exists(name string) bool
+	UPDATE_Username(name string)
+	ADD_User_To_Server(client *Client)
+	GET_User_By_Name(name string) *Client
+}
+
+type RoomStore interface {
+	DELETE_From_Room(roomName string, userName string)
+	ADD_To_Room(client *Client, roomName string)
+	ASSIGN_To_Room(client *Client, roomName string)
+	CREATE_New_Room(room *Room)
+	CHECK_If_Exists(roomName string) bool
+	GET_All_Rooms() string
+	GET_All_Users_Room(roomName string) map[string]*Client
 }
 
 func NewRoom(name string) *Room {
 	return &Room{
 		Name:  name,
-		Users: make(map[string]*Client),
+		Users: NewClientMap(),
 	}
 }
 
 type Message struct {
 	Text   string
-	Author *Client
+	Author string
 	Time   string
-	Dest   *Room
+	Dest   string
 }
 
 func NewMessage() *Message {
 	return &Message{
 		Text:   "",
-		Author: nil,
-		Dest:   nil,
+		Author: "",
+		Dest:   "",
 	}
 }
 
 func (msg *Message) FillMessage(c *Client, text string) {
 	msg.Text = text
-	msg.Author = c
+	msg.Author = c.Username
 	msg.Dest = c.Room
 	msg.Time = time.Now().Format(time.TimeOnly)
 }
@@ -57,7 +75,7 @@ type Client struct {
 	Reader     bufio.Reader
 	Writer     bufio.Writer
 	Connection net.Conn
-	Room       *Room
+	Room       string
 }
 
 func NewClient(connection net.Conn, server *Server) *Client {
@@ -66,9 +84,9 @@ func NewClient(connection net.Conn, server *Server) *Client {
 		Reader:     *bufio.NewReader(connection),
 		Writer:     *bufio.NewWriter(connection),
 		Connection: connection,
-		Room:       nil,
+		Room:       "",
 	}
-	server.InfoLog.Printf("New CLIENT: %s: %v", cl.Username, connection.RemoteAddr())
+	INFOLOG.Printf("New CLIENT: %s: %v", cl.Username, connection.RemoteAddr())
 	go cl.Read(server)
 
 	return cl
@@ -80,7 +98,7 @@ func (client *Client) Read(server *Server) {
 	for {
 		str, err := client.Reader.ReadString('\n')
 		if err != nil {
-			server.ErrorLog.Println("Reading from CLIENT: ", client.Username)
+			ERRORLOG.Println("Reading from CLIENT: ", client.Username)
 			return
 		}
 
@@ -92,7 +110,7 @@ func (client *Client) Read(server *Server) {
 
 }
 
-func (client *Client) Write(Status string, Username string, Text string, Time string, server *Server) {
+func (client *Client) Write(Status string, Username string, Text string, Time string) {
 
 	JSON_payload := JSON_payload{Username: Username, Text: Text, Time: Time, Status: Status}
 	str_json, err := json.Marshal(JSON_payload)
@@ -101,8 +119,8 @@ func (client *Client) Write(Status string, Username string, Text string, Time st
 	if err != nil {
 		return
 	}
-	server.InfoLog.Printf("GOT PAYLOAD: %s, %s, %s, %s", JSON_payload.Username, JSON_payload.Text, JSON_payload.Time, JSON_payload.Status)
-	server.InfoLog.Printf("Sent MESSAGE: (%s) to CLIENT: (%s); in ROOM: (%s)", strings.Trim(Text, "\n"), client.Username, client.Room.Name)
+	INFOLOG.Printf("GOT PAYLOAD: %s, %s, %s, %s", JSON_payload.Username, JSON_payload.Text, JSON_payload.Time, JSON_payload.Status)
+	INFOLOG.Printf("Sent MESSAGE: (%s) to CLIENT: (%s); in ROOM: (%s)", strings.Trim(Text, "\n"), client.Username, client.Room)
 	client.Writer.Flush()
 
 }
@@ -124,40 +142,34 @@ const (
 )
 
 type Server struct {
-	Incoming   chan *Message
-	Rooms      map[string]*Room
-	Users      map[string]*Client
-	InfoLog    *log.Logger
-	ErrorLog   *log.Logger
-	WarningLog *log.Logger
+	Incoming chan *Message
+	Rooms    RoomStore
+	Users    UserStore
 }
+
+var STREAM = os.Stdout
+var INFOLOG = log.New(STREAM, "[INFO] ", log.Ldate|log.Ltime)
+var WARNINGLOG = log.New(STREAM, "[WARNING] ", log.Ldate|log.Ltime)
+var ERRORLOG = log.New(STREAM, "[ERROR] ", log.Ldate|log.Ltime)
 
 func NewServer(fileLog bool) *Server {
 
-	file := os.Stdout
-	err := error(nil)
 	if fileLog {
-		file, err = os.OpenFile("log.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		file, err := os.OpenFile("log.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 		if err != nil {
 			panic(err)
 		}
+
+		log.SetOutput(file)
 	}
 
-	log.SetOutput(file)
-	InfoLog := log.New(file, "[INFO] ", log.Ldate|log.Ltime)
-	WarningLog := log.New(file, "[WARNING] ", log.Ldate|log.Ltime)
-	ErrorLog := log.New(file, "[ERROR] ", log.Ldate|log.Ltime)
-
-	InfoLog.Println("Server is starting...")
+	INFOLOG.Println("Server is starting...")
 
 	s := &Server{
-		Incoming:   make(chan *Message),
-		Rooms:      make(map[string]*Room),
-		Users:      make(map[string]*Client),
-		InfoLog:    InfoLog,
-		ErrorLog:   ErrorLog,
-		WarningLog: WarningLog,
+		Incoming: make(chan *Message),
+		Rooms:    NewRoomMap(),
+		Users:    NewClientMap(),
 	}
 
 	s.ListenChans()
@@ -169,18 +181,22 @@ func (s *Server) ListenChans() {
 		for {
 			select {
 			case message_in := <-s.Incoming:
-				s.InfoLog.Printf("Received MESSAGE: (%s) from CLIENT: (%s); in ROOM: (%s)", strings.Trim(message_in.Text, "\n"), message_in.Author.Username, message_in.Dest.Name)
+				INFOLOG.Printf("Received MESSAGE: (%s) from CLIENT: (%s); in ROOM: (%s)", strings.Trim(message_in.Text, "\n"), message_in.Author, message_in.Dest)
 				s.ParseMsg(message_in)
 			}
 		}
 	}()
 }
 
+func (store *ClientStoreMap) GET_User_By_Name(name string) *Client {
+	return store.Items[name]
+}
+
 func (s *Server) ParseMsg(msg *Message) {
 	switch {
 	case msg.Text[0] == '/':
 		msg.Text = msg.Text[1:]
-		s.ParseCommand(msg)
+		s.ParseCommand(msg, s.Users.GET_User_By_Name(msg.Author))
 	default:
 		s.Broadcast(msg)
 	}
@@ -188,27 +204,27 @@ func (s *Server) ParseMsg(msg *Message) {
 
 func (s *Server) FormatText(msg Message) string {
 
-	return fmt.Sprintf("%v %v: %v", msg.Time, msg.Author.Username, msg.Text)
+	return fmt.Sprintf("%v %v: %v", msg.Time, msg.Author, msg.Text)
 
 }
 
-func (s *Server) ParseCommand(msg *Message) {
+func (s *Server) ParseCommand(msg *Message, clinet *Client) {
 	switch {
 	case GetCommand(msg.Text) == CMDJoin:
-		s.InfoLog.Println("Received JOIN command")
-		s.JoinRoom(msg.Author, s.GetSecArg(msg))
+		INFOLOG.Println("Received JOIN command")
+		s.JoinRoom(clinet, s.GetSecArg(msg))
 	case GetCommand(msg.Text) == CMDLeave:
-		s.InfoLog.Println("Received LEAVE command")
-		s.LeaveRoom(msg.Author)
+		INFOLOG.Println("Received LEAVE command")
+		s.LeaveRoom(clinet)
 	case GetCommand(msg.Text) == CMDList:
-		s.InfoLog.Println("Received LIST command")
-		s.ListRooms(msg.Author)
+		INFOLOG.Println("Received LIST command")
+		s.ListRooms(clinet)
 	case GetCommand(msg.Text) == CMDHelp:
-		s.InfoLog.Println("Received HELP command")
+		INFOLOG.Println("Received HELP command")
 		//s.Help(msg.Author)
 	case GetCommand(msg.Text) == CMDCreate:
-		s.InfoLog.Println("Received CREATE command")
-		s.CreateRoom(msg.Author, s.GetSecArg(msg))
+		INFOLOG.Println("Received CREATE command")
+		s.CreateRoom(clinet, s.GetSecArg(msg))
 	}
 }
 
@@ -223,14 +239,171 @@ func (s *Server) GetSecArg(msg *Message) string {
 }
 
 func (s *Server) LeaveRoom(client *Client) {
-	s.UtilMsgToClient(client, fmt.Sprintf("You left room: %s! You are now in room: General\n", client.Room.Name), time.Now().Format(time.TimeOnly), "LEFT", "System Notification")
+	s.UtilMsgToClient(client, fmt.Sprintf("You left room: %s! You are now in room: General\n", client.Room), time.Now().Format(time.TimeOnly), "LEFT", "System Notification")
 	s.UtilBroadcast(client, " left room!\n", time.Now().Format(time.TimeOnly), "SENT", client.Username)
-	s.InfoLog.Printf("CLIENT: (%s) left ROOM: (%s)", client.Username, client.Room.Name)
+	INFOLOG.Printf("CLIENT: (%s) left ROOM: (%s)", client.Username, client.Room)
 
-	delete(s.Rooms[client.Room.Name].Users, client.Username)
-	client.Room = s.Rooms["General"]
-	s.Rooms["General"].Users[client.Username] = client
+	s.Rooms.DELETE_From_Room(client.Room, client.Username) //DELETE FROM ROOM
+	s.Rooms.ASSIGN_To_Room(client, "General")              //ASSIGN CLIENT ROOM
+	s.Rooms.ADD_To_Room(client, "General")                 //ADD TO ROOM
 
+}
+
+type ClientStoreMap struct {
+	Items map[string]*Client
+}
+
+type RoomStoreMap struct {
+	Items map[string]*Room
+}
+
+func NewRoomMap() *RoomStoreMap {
+	return &RoomStoreMap{Items: make(map[string]*Room)}
+}
+
+func NewClientMap() *ClientStoreMap {
+	return &ClientStoreMap{Items: make(map[string]*Client)}
+}
+
+func (store *RoomStoreMap) DELETE_From_Room(roomName string, userName string) {
+	delete(store.Items[roomName].Users.GET_All_Users_Server(), userName)
+}
+
+func (store *RoomStoreMap) ADD_To_Room(client *Client, roomName string) {
+	store.Items[roomName].Users.ADD_User_To_Server(client)
+}
+
+func (store *RoomStoreMap) ASSIGN_To_Room(client *Client, roomName string) {
+	client.Room = roomName
+}
+
+func (store *RoomStoreMap) CREATE_New_Room(room *Room) {
+	store.Items[room.Name] = room
+}
+
+func (store *RoomStoreMap) CHECK_If_Exists(roomName string) bool {
+	return store.Items[roomName] != nil
+}
+
+func (s *Server) JoinRoom(client *Client, name string) {
+	if !s.Rooms.CHECK_If_Exists(name) { //CHECK IF EXISTS
+		client.Write("NEX", "Server Notification", "Room Doesn't Exist\n", time.Now().Format(time.TimeOnly))
+		WARNINGLOG.Printf("CLIENT: (%s) tried to join ROOM: (%s) that does not exist", client.Username, name)
+		return
+	}
+
+	s.UtilBroadcast(client, "left this room!\n", time.Now().Format(time.TimeOnly), "LEFT", client.Username)
+
+	s.Rooms.DELETE_From_Room(client.Room, client.Username) //DELETE FROM ROOM
+	s.Rooms.ASSIGN_To_Room(client, name)                   //ASSIGN TO ROOM
+	s.Rooms.ADD_To_Room(client, name)                      //ADD TO ROOM
+
+	INFOLOG.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room)
+	s.UtilMsgToClient(client, fmt.Sprintf("You joined room: %s!\n", name), time.Now().Format(time.TimeOnly), "JOINED", "System Notification")
+	s.UtilBroadcast(client, "joined this room!\n", time.Now().Format(time.TimeOnly), "JOINED", client.Username)
+}
+
+func (s *Server) CreateRoom(client *Client, name string) {
+	if s.Rooms.CHECK_If_Exists(name) { //CHECK IF EXISTS
+		client.Write("ALREX", "Server Notification", "Room Already Exists\n", time.Now().Format(time.TimeOnly))
+		WARNINGLOG.Printf("CLIENT: (%s) tried to create ROOM: (%s) that already exists", client.Username, client.Room)
+		return
+	}
+
+	s.UtilBroadcast(client, "left this room!\n", time.Now().Format(time.TimeOnly), "LEFT", client.Username)
+
+	room := NewRoom(name)
+	s.Rooms.CREATE_New_Room(room)                          //CREATE NEW ROOM
+	s.Rooms.DELETE_From_Room(client.Room, client.Username) //DELETE FROM ROOM
+	s.Rooms.ASSIGN_To_Room(client, room.Name)              //ASSIGN TO ROOM
+	s.Rooms.ADD_To_Room(client, room.Name)                 //ADD TO ROOM
+	INFOLOG.Printf("CLIENT: (%s) created and joined ROOM: (%s)", client.Username, client.Room)
+	s.UtilMsgToClient(client, fmt.Sprintf("You Created and Joined room %s\n", client.Room), time.Now().Format(time.TimeOnly), "CREATED\n", "System Notification")
+	s.UtilBroadcastServer(s, "BRCREATED", name)
+}
+
+func (store *RoomStoreMap) GET_All_Rooms() string {
+	var room_list string
+	idx := 1
+	for _, room := range store.Items {
+		if idx == len(store.Items) {
+			room_list += strings.Trim(room.Name, "\n")
+		} else {
+			room_list += strings.Trim(room.Name, "\n") + " "
+		}
+
+		idx++
+
+	}
+
+	return room_list
+}
+
+func (s *Server) ListRooms(client *Client) {
+	INFOLOG.Printf("CLIENT: (%s) requested list of rooms", client.Username)
+	//s.UtilMsgToClient(client, "Available rooms:\n", )
+	room_list := s.Rooms.GET_All_Rooms()
+
+	client.Write("LIST", "Server Notification", strings.Trim(room_list, "\n"), time.Now().Format(time.TimeOnly))
+}
+
+func (store *ClientStoreMap) GET_All_Users_Server() map[string]*Client {
+	return store.Items
+}
+
+func (s *Server) UtilBroadcastServer(server *Server, Status string, Text string) {
+	for _, user := range s.Users.GET_All_Users_Server() { // GET ALL USERS SERVER-WIDE
+		user.Write(Status, "System Notification", Text, time.Now().Format(time.TimeOnly))
+	}
+}
+
+func (store *RoomStoreMap) GET_All_Users_Room(roomName string) map[string]*Client {
+	return store.Items[roomName].Users.GET_All_Users_Server()
+}
+
+func (s *Server) Broadcast(msg *Message) {
+	roomName := msg.Dest
+	for _, user := range s.Rooms.GET_All_Users_Room(roomName) { //GET ALL USERS IN A ROOM
+		user.Write("SENT", msg.Author, msg.Text, msg.Time)
+	}
+}
+
+func (s *Server) UtilBroadcast(client *Client, Text string, Time string, Status string, Sender string) {
+	roomName := client.Room
+	for _, user := range s.Rooms.GET_All_Users_Room(roomName) { //GET ALL USERS IN A ROOM
+		user.Write(Status, Sender, Text, Time)
+	}
+}
+func (s *Server) UtilMsgToClient(client *Client, Text string, Time string, Status string, Sender string) {
+	client.Write(Status, Sender, Text, Time)
+}
+
+func (store *ClientStoreMap) CHECK_If_Exists(name string) bool {
+	return store.Items[name] != nil
+}
+
+func (store *ClientStoreMap) UPDATE_Username(name string) {
+	store.Items[name].Username = store.Items[name].Username + "*"
+}
+
+func (s *Server) RecursiveUserNameCheck(client *Client) {
+	if s.Users.CHECK_If_Exists(client.Username) { //CHECK IF USER EXISTS
+		client.Username = client.Username + "*" //UPDATE NAME
+		s.RecursiveUserNameCheck(client)
+	}
+}
+
+func (store *ClientStoreMap) ADD_User_To_Server(client *Client) {
+	store.Items[client.Username] = client
+}
+
+func (server *Server) Join(client *Client) {
+	server.RecursiveUserNameCheck(client)
+	server.Users.ADD_User_To_Server(client) //ADD USER TO SERVER STORAGE
+
+	server.Rooms.ADD_To_Room(client, "General")    //ADD TO ROOM
+	server.Rooms.ASSIGN_To_Room(client, "General") //ASSIGN ROOM
+	INFOLOG.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room)
 }
 
 // func (s *Server) Help(client *Client) {
@@ -245,91 +418,3 @@ func (s *Server) LeaveRoom(client *Client) {
 // 	client.Write("create <name>\n")
 // 	client.Write("\n")
 // }
-
-func (s *Server) JoinRoom(client *Client, name string) {
-	if s.Rooms[name] == nil {
-		client.Write("NEX", "Server Notification", "Room Doesn't Exist\n", time.Now().Format(time.TimeOnly), s)
-		s.WarningLog.Printf("CLIENT: (%s) tried to join ROOM: (%s) that does not exist", client.Username, name)
-		return
-	}
-
-	delete(s.Rooms[client.Room.Name].Users, client.Username)
-	client.Room = s.Rooms[name]
-	s.Rooms[name].Users[client.Username] = client
-
-	s.InfoLog.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room.Name)
-	s.UtilMsgToClient(client, fmt.Sprintf("You joined room: %s!\n", name), time.Now().Format(time.TimeOnly), "JOINED", "System Notification")
-	s.UtilBroadcast(client, "joined this room!\n", time.Now().Format(time.TimeOnly), "JOINED", client.Username)
-}
-
-func (s *Server) CreateRoom(client *Client, name string) {
-	if s.Rooms[name] != nil {
-		client.Write("ALREX", "Server Notification", "Room Already Exists\n", time.Now().Format(time.TimeOnly), s)
-		s.WarningLog.Printf("CLIENT: (%s) tried to create ROOM: (%s) that already exists", client.Username, client.Room.Name)
-		return
-	}
-	room := NewRoom(name)
-	s.Rooms[name] = room
-	delete(s.Rooms[client.Room.Name].Users, client.Username)
-	client.Room = room
-	room.Users[client.Username] = client
-	s.InfoLog.Printf("CLIENT: (%s) created and joined ROOM: (%s)", client.Username, client.Room.Name)
-	s.UtilMsgToClient(client, fmt.Sprintf("You Created and Joined room %s\n", client.Room.Name), time.Now().Format(time.TimeOnly), "CREATED\n", "System Notification")
-	s.UtilBroadcastServer(s, "BRCREATED", name)
-}
-
-func (s *Server) ListRooms(client *Client) {
-	s.InfoLog.Printf("CLIENT: (%s) requested list of rooms", client.Username)
-	//s.UtilMsgToClient(client, "Available rooms:\n", )
-	var room_list string
-	idx := 1
-	for _, room := range s.Rooms {
-		if idx == len(s.Rooms) {
-			room_list += strings.Trim(room.Name, "\n")
-		} else {
-			room_list += strings.Trim(room.Name, "\n") + " "
-		}
-
-		idx++
-
-	}
-
-	client.Write("LIST", "Server Notification", strings.Trim(room_list, "\n"), time.Now().Format(time.TimeOnly), s)
-}
-
-func (s *Server) UtilBroadcastServer(server *Server, Status string, Text string) {
-	for _, user := range server.Users {
-		user.Write(Status, "System Notification", Text, time.Now().Format(time.TimeOnly), s)
-	}
-}
-
-func (s *Server) Broadcast(msg *Message) {
-	for _, user := range msg.Dest.Users {
-		user.Write("SENT", msg.Author.Username, msg.Text, msg.Time, s)
-	}
-}
-
-func (s *Server) UtilBroadcast(client *Client, Text string, Time string, Status string, Sender string) {
-	for _, user := range client.Room.Users {
-		user.Write(Status, Sender, Text, Time, s)
-	}
-}
-func (s *Server) UtilMsgToClient(client *Client, Text string, Time string, Status string, Sender string) {
-	client.Write(Status, Sender, Text, Time, s)
-}
-
-func (s *Server) RecursiveUserNameCheck(client *Client) {
-	if s.Users[client.Username] != nil {
-		client.Username = client.Username + "*"
-		s.RecursiveUserNameCheck(client)
-	}
-}
-
-func (server *Server) Join(client *Client) {
-	server.RecursiveUserNameCheck(client)
-	server.Users[client.Username] = client
-
-	server.Rooms["General"].Users[client.Username] = client
-	client.Room = server.Rooms["General"]
-	server.InfoLog.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room.Name)
-}
