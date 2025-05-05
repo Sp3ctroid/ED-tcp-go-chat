@@ -57,6 +57,7 @@ type RoomStore interface {
 	CHECK_If_Exists(roomName string) bool
 	GET_All_Rooms() string
 	GET_All_Users_Room(roomName string) map[string]*Client
+	GET_Room(roomName string) *Room
 }
 
 func NewRoom(name string) *Room {
@@ -308,7 +309,7 @@ func (s *Server) JoinRoom(client *Client, name string) {
 
 	INFOLOG.Printf("CLIENT: (%s) joined ROOM: (%s)", client.Username, client.Room)
 	s.UtilMsgToClient(client, fmt.Sprintf("You joined room: %s!\n", name), time.Now().Format(time.TimeOnly), "JOINED", "System Notification")
-	s.UtilBroadcast(client, "joined this room!\n", time.Now().Format(time.TimeOnly), "JOINED", client.Username)
+	s.UtilBroadcast(client, "joined this room!\n", time.Now().Format(time.TimeOnly), "USERJOINED", client.Username)
 }
 
 func (s *Server) CreateRoom(client *Client, name string) {
@@ -347,6 +348,10 @@ func (store *RoomStoreMap) GET_All_Rooms() string {
 	return room_list
 }
 
+func (store *RoomStoreMap) GET_Room(roomName string) *Room {
+	return store.Items[roomName]
+}
+
 func (s *Server) ChangeUserName(oldName, newUserName string) {
 	cl := s.Users.GET_User_By_Name(oldName)
 	if s.Users.CHECK_If_Exists(newUserName) {
@@ -357,9 +362,8 @@ func (s *Server) ChangeUserName(oldName, newUserName string) {
 
 	s.UtilBroadcast(s.Users.GET_User_By_Name(oldName), fmt.Sprintf("changed his name to: %s", newUserName), time.Now().Format(time.TimeOnly), "USERNAMECHANGED", oldName)
 
-	s.Rooms.DELETE_From_Room(s.Users.GET_User_By_Name(oldName).Room, oldName)
+	s.Rooms.GET_Room(s.Users.GET_User_By_Name(oldName).Room).Users.UPDATE_Username(oldName, newUserName)
 	s.Users.UPDATE_Username(oldName, newUserName)
-	s.Rooms.ADD_To_Room(s.Users.GET_User_By_Name(newUserName), s.Users.GET_User_By_Name(newUserName).Room)
 
 	s.UtilMsgToClient(cl, fmt.Sprintf("You changed your username to %s", newUserName), time.Now().Format(time.TimeOnly), "CHANGED", "System Notification")
 
