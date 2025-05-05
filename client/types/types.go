@@ -19,6 +19,8 @@ const (
 	CancelCreate
 	CancelJoin
 	CancelList
+	ChangeName
+	CancelChangeName
 )
 
 type StateChangeMsg struct {

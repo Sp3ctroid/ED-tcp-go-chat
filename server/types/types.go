@@ -11,6 +11,24 @@ import (
 	"time"
 )
 
+var cmd = map[string]int{
+	"join":   1,
+	"leave":  2,
+	"list":   3,
+	"help":   4,
+	"create": 5,
+	"name":   6,
+}
+
+const (
+	CMDJoin       = 1
+	CMDLeave      = 2
+	CMDList       = 3
+	CMDHelp       = 4
+	CMDCreate     = 5
+	CMDChangeName = 6
+)
+
 type JSON_payload struct {
 	Username string `json:"author"`
 	Text     string `json:"text"`
@@ -26,7 +44,7 @@ type Room struct {
 type UserStore interface {
 	GET_All_Users_Server() map[string]*Client
 	CHECK_If_Exists(name string) bool
-	UPDATE_Username(name string)
+	UPDATE_Username(name string, changeTo string)
 	ADD_User_To_Server(client *Client)
 	GET_User_By_Name(name string) *Client
 }
@@ -115,6 +133,10 @@ func (client *Client) Write(Status string, Username string, Text string, Time st
 	JSON_payload := JSON_payload{Username: Username, Text: Text, Time: Time, Status: Status}
 	str_json, err := json.Marshal(JSON_payload)
 
+	if err != nil {
+		return
+	}
+
 	_, err = client.Writer.WriteString(string(str_json))
 	if err != nil {
 		return
@@ -124,22 +146,6 @@ func (client *Client) Write(Status string, Username string, Text string, Time st
 	client.Writer.Flush()
 
 }
-
-var cmd = map[string]int{
-	"join":   1,
-	"leave":  2,
-	"list":   3,
-	"help":   4,
-	"create": 5,
-}
-
-const (
-	CMDJoin   = 1
-	CMDLeave  = 2
-	CMDList   = 3
-	CMDHelp   = 4
-	CMDCreate = 5
-)
 
 type Server struct {
 	Incoming chan *Message
@@ -225,6 +231,8 @@ func (s *Server) ParseCommand(msg *Message, clinet *Client) {
 	case GetCommand(msg.Text) == CMDCreate:
 		INFOLOG.Println("Received CREATE command")
 		s.CreateRoom(clinet, s.GetSecArg(msg))
+	case GetCommand(msg.Text) == CMDChangeName:
+		s.ChangeUserName(msg.Author, s.GetSecArg(msg))
 	}
 }
 
@@ -339,6 +347,24 @@ func (store *RoomStoreMap) GET_All_Rooms() string {
 	return room_list
 }
 
+func (s *Server) ChangeUserName(oldName, newUserName string) {
+	cl := s.Users.GET_User_By_Name(oldName)
+	if s.Users.CHECK_If_Exists(newUserName) {
+
+		cl.Write("ALRTAK", "System Notification", "Username is already taken", time.Now().Format(time.TimeOnly))
+		return
+	}
+
+	s.UtilBroadcast(s.Users.GET_User_By_Name(oldName), fmt.Sprintf("changed his name to: %s", newUserName), time.Now().Format(time.TimeOnly), "USERNAMECHANGED", oldName)
+
+	s.Rooms.DELETE_From_Room(s.Users.GET_User_By_Name(oldName).Room, oldName)
+	s.Users.UPDATE_Username(oldName, newUserName)
+	s.Rooms.ADD_To_Room(s.Users.GET_User_By_Name(newUserName), s.Users.GET_User_By_Name(newUserName).Room)
+
+	s.UtilMsgToClient(cl, fmt.Sprintf("You changed your username to %s", newUserName), time.Now().Format(time.TimeOnly), "CHANGED", "System Notification")
+
+}
+
 func (s *Server) ListRooms(client *Client) {
 	INFOLOG.Printf("CLIENT: (%s) requested list of rooms", client.Username)
 	//s.UtilMsgToClient(client, "Available rooms:\n", )
@@ -382,8 +408,12 @@ func (store *ClientStoreMap) CHECK_If_Exists(name string) bool {
 	return store.Items[name] != nil
 }
 
-func (store *ClientStoreMap) UPDATE_Username(name string) {
-	store.Items[name].Username = store.Items[name].Username + "*"
+func (store *ClientStoreMap) UPDATE_Username(name string, changeTo string) {
+
+	client := store.Items[name]
+	client.Username = changeTo
+	store.Items[changeTo] = client
+	delete(store.Items, name)
 }
 
 func (s *Server) RecursiveUserNameCheck(client *Client) {

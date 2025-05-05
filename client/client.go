@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net"
 
@@ -10,13 +11,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const (
-	move_to_prev_line = "\033[F"
-	clear_line        = "\033[K"
-)
-
 func main() {
-	connection, err := net.Dial("tcp", ":8080")
+
+	ip := flag.String("ip", "127.0.0.1", "default is localhost.")
+	port := flag.String("port", "8080", "default is 8080.")
+
+	connection, err := net.Dial("tcp", *ip+":"+*port)
 	if err != nil {
 		log.Println(err)
 	}
@@ -25,5 +25,4 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
-
 }

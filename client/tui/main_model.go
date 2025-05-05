@@ -26,6 +26,7 @@ type mainModel struct {
 	chatRoomModel   tea.Model
 	joinRoomModel   tea.Model
 	createRoomModel tea.Model
+	changeNameModel tea.Model
 }
 
 func InitialModel(conn *net.Conn) mainModel {
@@ -35,6 +36,7 @@ func InitialModel(conn *net.Conn) mainModel {
 	createRoomModel := NewCreateRoomModel(conn)
 	joinRoomeModel := NewJoinRoomModel(conn)
 	listRoomModel := NewRoomList(conn)
+	changeNameModel := NewChangeNameModel(conn)
 	return mainModel{
 		state: initialState,
 		conn:  *conn,
@@ -44,6 +46,7 @@ func InitialModel(conn *net.Conn) mainModel {
 		joinRoomModel:   joinRoomeModel,
 		createRoomModel: createRoomModel,
 		chatRoomModel:   chatRoomModel,
+		changeNameModel: changeNameModel,
 	}
 }
 
@@ -65,6 +68,7 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.joinRoomModel, _ = m.joinRoomModel.Update(msg)
 		m.listRoomsModel, _ = m.listRoomsModel.Update(msg)
 		m.chatRoomModel, _ = m.chatRoomModel.Update(msg)
+		m.changeNameModel, _ = m.changeNameModel.Update(msg)
 	case types.JSON_payload:
 		if strings.Compare("BRCREATED", msg.Status) == 0 {
 			m.listRoomsModel, cmd = m.listRoomsModel.Update(msg)
@@ -86,6 +90,8 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = types.LeaveRoom
 		case tea.KeyCtrlA:
 			m.state = types.ListRooms
+		case tea.KeyCtrlU:
+			m.state = types.ChangeName
 		}
 
 	case types.StateChangeMsg:
@@ -101,6 +107,8 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case types.CancelJoin:
 			m.state = types.ChatRoom
 		case types.CancelList:
+			m.state = types.ChatRoom
+		case types.CancelChangeName:
 			m.state = types.ChatRoom
 		}
 
@@ -123,12 +131,17 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newJoinRoom, newCmd := m.joinRoomModel.Update(msg)
 		m.joinRoomModel = newJoinRoom
 		cmd = newCmd
+
 	case types.ListRooms:
 		newListRoom, newCmd := m.listRoomsModel.Update(msg)
 		m.listRoomsModel = newListRoom
 		cmd = newCmd
 
-	case types.LeaveRoom:
+	case types.ChangeName:
+		newChangeName, newCmd := m.changeNameModel.Update(msg)
+		m.changeNameModel = newChangeName
+		cmd = newCmd
+
 	}
 
 	cmds = append(cmds, cmd)
@@ -145,6 +158,8 @@ func (m mainModel) View() string {
 		return m.joinRoomModel.View()
 	case types.ListRooms:
 		return m.listRoomsModel.View()
+	case types.ChangeName:
+		return m.changeNameModel.View()
 	default:
 		return m.chatRoomModel.View()
 	}

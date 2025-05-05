@@ -29,8 +29,9 @@ Congratulations! You are connected and can start sending messages. Start a third
 -   ```ctrl+n``` - create new room
 -   ```ctrl+j``` - join room by its name
 -   ```ctrl+a``` - open a list of rooms. By pressing ```ENTER``` you can join selected room
+- ```ctrl+u``` - change your username
 
-You can go back to your chat room by pressing ```esc``` if you change your mind about creating or joining a room.
+You can go back to your chat room by pressing ```esc```
 
 ---
 
@@ -39,6 +40,13 @@ You can go back to your chat room by pressing ```esc``` if you change your mind 
 - ```-log``` Defult is ```false```, meaning server logs will go directly into terminal. Setting it ```true``` makes server output log into ```log.log``` file.
 - ```-ip``` Default is ```127.0.0.1```, meaning server will start on ```localhost```.
 - ```-port``` Default is ```8080```, meaning it will start on this port.
+
+---
+
+# Client start options
+
+- ```-ip``` Default is ```127.0.0.1```, meaning client will try to connect to a server, that is launched on ```localhost```
+- ```-port``` Default is ```8080```.
 
 ---
 

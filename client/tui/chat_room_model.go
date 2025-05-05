@@ -85,6 +85,16 @@ func (m chatRoomModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if strings.Compare(msg.Status, "BRCREATED") == 0 {
 			return m, nil
 		}
+		if strings.Compare(msg.Status, "USERNAMECHANGED") == 0 {
+			new_name := strings.Split(msg.Text, " ")[4]
+			m.messages = append(m.messages, msg.Time+" "+m.senderStyle.Render(msg.Username)+" "+strings.TrimSuffix(msg.Text, " "+new_name)+" "+m.senderStyle.Render(new_name))
+			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(strings.Join(m.messages, "\n")))
+			m.viewport.GotoBottom()
+			return m, nil
+		}
+		if strings.Compare(msg.Status, "JOINED") == 0 {
+			m.messages = []string{}
+		}
 		m.messages = append(m.messages, msg.Time+" "+m.senderStyle.Render(msg.Username)+" "+msg.Text)
 		m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width).Render(strings.Join(m.messages, "\n")))
 		m.viewport.GotoBottom()
