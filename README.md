@@ -11,19 +11,6 @@ Congratulations! You are connected and can start sending messages. Start a third
 
 ---
 
-# Available commands in NO TUI client
-
->[!WARNING]
->NO BUBBLE CLIENT DOESNT WORK PROPEPRLY AS OF 29.04.2025, SINCE READING AND WRITING HAS BEEN REWORKED TO JSON FORMAT.
-
--   ```/help``` for a list of commands in client
--   ```/leave``` leave your current room. Redirects you to General, which is created by default
--   ```/create <name>``` create a room with a given name
--   ```/join <name>``` join a room with a given name
--   ```/list``` get a list of all rooms
-
----
-
 # Available commands in TUI client
 
 -   ```ctrl+n``` - create new room
