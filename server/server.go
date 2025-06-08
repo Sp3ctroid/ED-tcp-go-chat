@@ -4,6 +4,9 @@ import (
 	"flag"
 	"net"
 	"serverMod/types"
+	"serverMod/types/logger"
+	"serverMod/types/rc"
+	"serverMod/types/storage"
 )
 
 func main() {
@@ -23,17 +26,17 @@ func main() {
 	defer listener.Close()
 
 	server := types.NewServer(*fileLog)
-	types.INFOLOG.Println("Server started on port 8080")
-	room := types.Room{Name: "General", Users: types.NewClientMap()}
+	logger.INFOLOG.Println("Server started on port 8080")
+	room := storage.Room{Name: "General", Users: storage.NewClientMap()}
 	server.Rooms.CREATE_New_Room(&room)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			types.ERRORLOG.Println("Couldn't accept connection")
+			logger.ERRORLOG.Println("Couldn't accept connection")
 			continue
 		}
 
-		nClient := types.NewClient(conn, server)
+		nClient := rc.NewClient(conn, server.Incoming)
 		server.Join(nClient)
 	}
 }
